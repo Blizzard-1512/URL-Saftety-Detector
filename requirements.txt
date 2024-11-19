@@ -1,1 +1,14 @@
-streamlit>=1.26.0
+streamlit
+Flask
+keras_tuner
+matplotlib
+numpy
+pandas
+protobuf
+scikit_learn
+scipy
+seaborn
+streamlit
+tensorflow
+tensorflow_intel
+xgboost
