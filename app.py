@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
+import io  # For handling file download
 
 # Load all models
 try:
@@ -170,12 +171,27 @@ if st.button("Predict") and extracted_features:
             st.write("Prediction Results:")
             st.dataframe(prediction_df)
 
-            # Display "Go to URL" button
+            # Download button for the CSV file
+            @st.cache
+            def convert_df_to_csv(df):
+                return df.to_csv(index=False).encode()
+
+            csv_data = convert_df_to_csv(prediction_df)
+            st.download_button(
+                label="Download Prediction Results as CSV",
+                data=csv_data,
+                file_name="url_prediction_results.csv",
+                mime="text/csv"
+            )
+
+            # Display "Go to URL" button with HTML and JavaScript for opening URL in a new tab
             if st.button("Go to URL"):
-                st.write(f"Opening the URL: {url_input}")
-                st.markdown(f"[Click here to visit the URL]({url_input})", unsafe_allow_html=True)
+                js = f"window.open('{url_input}', '_blank');"
+                html = f'<script>{js}</script>'
+                st.markdown(html, unsafe_allow_html=True)
+                
     else:
         st.warning("Please select at least one model for prediction.")
 else:
     if not url_input:
-        st.warning("Please enter a URL and extract features before predicting.")
+        st.warning("Please enter a URL and extract features to proceed.")
