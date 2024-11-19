@@ -184,13 +184,12 @@ if st.button("Predict") and extracted_features:
                 mime="text/csv"
             )
 
-            # Display "Go to URL" button as an anchor tag with target="_blank"
+            # Display "Go to URL" button as an anchor tag with target="_blank" and styled like the other buttons
             st.markdown(
-                f'<a href="{url_input}" target="_blank" style="font-size:16px; color:blue; text-decoration:underline;">Go to URL</a>',
+                f'<a href="{url_input}" target="_blank"><button style="background-color: #4CAF50; color: white; border: none; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">Go to URL</button></a>',
                 unsafe_allow_html=True
             )
+
     else:
-        st.warning("Please select at least one model for prediction.")
-else:
-    if not url_input:
-        st.warning("Please enter a URL and extract features to proceed.")
+        st.warning("No models selected for prediction.")
+
