@@ -128,10 +128,10 @@ def convert_to_class_labels(predictions, threshold=0.5):
     """Converts continuous predictions to binary class labels based on a threshold."""
     return (predictions > threshold).astype(int)
 
-# Prediction button
+# Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
+    predictions = {}
     if selected_models:
-        predictions = {}
         for model_name, model in selected_models:
             try:
                 if hasattr(model, "predict_proba"):  # For models that predict probabilities
@@ -169,6 +169,11 @@ if st.button("Predict") and extracted_features:
             } for name, details in predictions.items()])
             st.write("Prediction Results:")
             st.dataframe(prediction_df)
+
+            # Display "Go to URL" button
+            if st.button("Go to URL"):
+                st.write(f"Opening the URL: {url_input}")
+                st.markdown(f"[Click here to visit the URL]({url_input})", unsafe_allow_html=True)
     else:
         st.warning("Please select at least one model for prediction.")
 else:
