@@ -184,12 +184,11 @@ if st.button("Predict") and extracted_features:
                 mime="text/csv"
             )
 
-            # Display "Go to URL" button with HTML and JavaScript for opening URL in a new tab
-            if st.button("Go to URL"):
-                js = f"window.open('{url_input}', '_blank');"
-                html = f'<script>{js}</script>'
-                st.markdown(html, unsafe_allow_html=True)
-                
+            # Display "Go to URL" button as an anchor tag with target="_blank"
+            st.markdown(
+                f'<a href="{url_input}" target="_blank" style="font-size:16px; color:blue; text-decoration:underline;">Go to URL</a>',
+                unsafe_allow_html=True
+            )
     else:
         st.warning("Please select at least one model for prediction.")
 else:
