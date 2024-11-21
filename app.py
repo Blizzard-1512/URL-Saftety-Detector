@@ -3,11 +3,12 @@ import numpy as np
 import pickle
 import re
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objs as go
 from urllib.parse import urlparse
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
-import matplotlib.pyplot as plt
 
 # Load all models
 try:
@@ -36,6 +37,36 @@ except FileNotFoundError:
     )
     X_test, y_test = None, None
 
+# Custom CSS for styling
+st.markdown("""
+<style>
+.stButton > button {
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 10px;
+    border: none;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+.stButton > button:hover {
+    background-color: #45a049;
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+}
+.go-to-url {
+    background-color: #2196F3;
+}
+.go-to-url:hover {
+    background-color: #0b7dda;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
 
@@ -54,12 +85,12 @@ st.markdown("""
 st.header("Enter a URL")
 url_input = st.text_input("Input the URL:")
 
-# Feature extraction function
+# Feature extraction function (same as before)
 def extract_features(url):
     features = {}
     parsed_url = urlparse(url)
 
-    # Extract features
+    # Extract features (same as previous implementation)
     features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else 0
     features["URL_Length"] = -1 if len(url) > 75 else (0 if len(url) > 54 else 1)
     features["Shortining_Service"] = 1 if "bit.ly" in url or "t.co" in url else 0
@@ -106,7 +137,7 @@ if url_input:
 else:
     extracted_features = None
 
-# Sidebar with model selection
+# Sidebar with model selection (same as before)
 st.sidebar.header("Select Models for Prediction")
 models = {
     "Voting Classifier": vtc,
@@ -177,18 +208,39 @@ if st.button("Predict") and extracted_features:
             st.write("Prediction Results:")
             st.dataframe(prediction_df.style.apply(highlight_predictions, axis=1))
 
-            # Generate plot of top 5 features
+            # Generate Plotly feature contribution graph
             feature_importances = pd.Series(extracted_features).sort_values(ascending=False)[:5]
-            plt.figure(figsize=(8, 5))
-            feature_importances.plot(kind='bar', color='blue')
-            plt.title("Top 5 Features Contributing to Prediction")
-            plt.ylabel("Feature Importance")
-            plt.xticks(rotation=45)
-            st.pyplot(plt)
+            
+            # Create a colorful Plotly bar chart
+            fig = px.bar(
+                x=feature_importances.index, 
+                y=feature_importances.values,
+                title="Top 5 Features Contributing to Prediction",
+                labels={'x': 'Features', 'y': 'Feature Importance'},
+                color=feature_importances.values,
+                color_continuous_scale='Viridis'
+            )
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis_title="Features",
+                yaxis_title="Feature Importance",
+                height=400,
+                width=800,
+                title_x=0.5,
+                font=dict(size=12)
+            )
+            fig.update_xaxes(tickangle=45)
+            st.plotly_chart(fig)
 
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
-                st.markdown(f"[Go to URL]({url_input})", unsafe_allow_html=True)
+                # Custom HTML and CSS for Go to URL button
+                go_to_url_html = f'''
+                <a href="{url_input}" target="_blank" class="stButton go-to-url">
+                    <button style="background-color: #2196F3; color: white;">Go to URL</button>
+                </a>
+                '''
+                st.markdown(go_to_url_html, unsafe_allow_html=True)
             else:
                 st.warning("Malicious URL detected. It is recommended not to visit this link.")
     else:
