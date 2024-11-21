@@ -228,7 +228,7 @@ if st.button("Predict") and extracted_features:
         # Display predictions
         if predictions:
             prediction_df = pd.DataFrame([{
-                "Model": name, "Prediction": details["Prediction"], "Accuracy": details["Accuracy"]
+                "Model": name, "Prediction": details["Prediction"], "Confidence Level": details["Accuracy"]
             } for name, details in predictions.items()])
 
             # Highlight safe and malicious predictions
