@@ -47,6 +47,26 @@ except FileNotFoundError:
     )
     X_test, y_test = None, None
 
+# Custom CSS for dark theme and styling
+st.markdown("""
+<style>
+.stApp {
+    background-color: #0E1117;
+    color: #FFFFFF;
+}
+.stDataFrame {
+    color: #000000;
+}
+.stTextInput > div > div > input {
+    color: #FFFFFF;
+    background-color: #262730;
+}
+h1, h2, h3, h4 {
+    color: #FFFFFF;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
 
@@ -195,30 +215,33 @@ if st.button("Predict") and extracted_features:
             # Display Top Contributing Features
             st.subheader("Top 5 Contributing Features")
             
-            # Create a display of top features
+            # Create a beautiful display of top features
             feature_container = st.container()
             with feature_container:
-                cols = st.columns(len(top_features))
+                cols = st.columns(5)
                 for i, (feature, value) in enumerate(top_features.items()):
                     with cols[i]:
                         st.markdown(f"""
                         <div style="
-                            background-color: #F0F2F6;
+                            background-color: #262730;
                             border-radius: 10px;
                             padding: 10px;
                             text-align: center;
                             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                            color: #FFFFFF;
                         ">
-                        <h4>{feature}</h4>
-                        <p style="font-size: 14px;">Value: {value}</p>
+                        <h4 style="color: #FFFFFF;">{feature}</h4>
+                        <p style="color: #CCCCCC; font-size: 14px;">Value: {value}</p>
                         </div>
                         """, unsafe_allow_html=True)
 
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
+                # Use custom dark theme button styling
                 st.markdown(
                     f'<a href="{url_input}" target="_blank" style="text-decoration: none;">'
-                    f'<button>Go to URL</button></a>', 
+                    f'<button style="background-color: #4CAF50; color: white; padding: 10px 20px; '
+                    f'border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Go to URL</button></a>', 
                     unsafe_allow_html=True
                 )
             else:
