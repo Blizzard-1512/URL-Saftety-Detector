@@ -14,7 +14,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
 
-# Set page configuration to wide mode and dark theme
+# Set page configuration to wide mode and default theme
 st.set_page_config(page_title="URL Safety Detector", 
                    page_icon=":shield:", 
                    layout="wide", 
@@ -47,59 +47,6 @@ except FileNotFoundError:
     )
     X_test, y_test = None, None
 
-# Function to get IP address
-def get_ip_address(url):
-    try:
-        # Extract domain from URL
-        domain = urlparse(url).netloc
-        # Remove port if exists
-        domain = domain.split(':')[0]
-        return socket.gethostbyname(domain)
-    except Exception as e:
-        st.error(f"Could not resolve IP address: {e}")
-        return None
-
-# Function to get IP geolocation
-def get_ip_geolocation(ip_address):
-    try:
-        # Use ipapi.co for free IP geolocation
-        response = requests.get(f'https://ipapi.co/{ip_address}/json/')
-        geo_data = response.json()
-        
-        # Ensure we have valid coordinates
-        if 'latitude' in geo_data and 'longitude' in geo_data:
-            return geo_data
-        else:
-            st.warning("Could not retrieve valid geolocation coordinates.")
-            return None
-    except Exception as e:
-        st.error(f"Could not fetch IP geolocation: {e}")
-        return None
-
-# Custom CSS for dark theme and styling
-st.markdown("""
-<style>
-.stApp {
-    background-color: #0E1117;
-    color: #FFFFFF;
-}
-.stDataFrame {
-    color: #000000;
-}
-.stTextInput > div > div > input {
-    color: #FFFFFF;
-    background-color: #262730;
-}
-.stButton > button {
-    background-color: #4CAF50;
-    color: white;
-}
-h1, h2, h3, h4 {
-    color: #FFFFFF;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
 
@@ -118,7 +65,7 @@ st.markdown("""
 st.header("Enter a URL")
 url_input = st.text_input("Input the URL:")
 
-# Feature extraction function (remains the same as in the original code)
+# Feature extraction function
 def extract_features(url):
     features = {}
     parsed_url = urlparse(url)
@@ -199,10 +146,6 @@ def convert_to_class_labels(predictions, threshold=0.5):
 
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
-    # Get IP Address and Geolocation
-    ip_address = get_ip_address(url_input)
-    ip_geolocation = get_ip_geolocation(ip_address) if ip_address else None
-
     predictions = {}
     if selected_models:
         for model_name, model in selected_models:
@@ -252,7 +195,7 @@ if st.button("Predict") and extracted_features:
             # Display Top Contributing Features
             st.subheader("Top 5 Contributing Features")
             
-            # Create a beautiful display of top features
+            # Create a display of top features
             feature_container = st.container()
             with feature_container:
                 cols = st.columns(len(top_features))
@@ -260,77 +203,22 @@ if st.button("Predict") and extracted_features:
                     with cols[i]:
                         st.markdown(f"""
                         <div style="
-                            background-color: #262730;
+                            background-color: #F0F2F6;
                             border-radius: 10px;
                             padding: 10px;
                             text-align: center;
                             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                            color: #FFFFFF;
                         ">
-                        <h4 style="color: #FFFFFF;">{feature}</h4>
-                        <p style="color: #CCCCCC; font-size: 14px;">Value: {value}</p>
+                        <h4>{feature}</h4>
+                        <p style="font-size: 14px;">Value: {value}</p>
                         </div>
                         """, unsafe_allow_html=True)
 
-            # IP Geolocation Visualization
-            if ip_geolocation:
-                st.subheader("IP Geolocation")
-                
-                # Create Plotly world map with IP location
-                fig = px.scatter_geo(
-                    locationmode='ISO-3',  # Use standard country codes
-                    lon=[ip_geolocation.get('longitude', 0)],
-                    lat=[ip_geolocation.get('latitude', 0)],
-                    hover_name=[f"IP: {ip_address}"],
-                    text=[f"Country: {ip_geolocation.get('country_name')}<br>City: {ip_geolocation.get('city', 'N/A')}"],
-                    projection='natural earth'
-                )
-                fig.update_layout(
-                    height=300, 
-                    margin={"r":0,"t":0,"l":0,"b":0},
-                    geo=dict(
-                        showframe=False,
-                        showcoastlines=False,
-                        projection_type='equirectangular',
-                        bgcolor='rgba(0,0,0,0)'
-                    ),
-                    paper_bgcolor='rgba(0,0,0,0)'
-                )
-                # Update the map style to match dark theme
-                fig.update_geos(
-                    visible=False,
-                    resolution=50,
-                    showcountries=True, 
-                    countrycolor="white",
-                    showocean=True, 
-                    oceancolor="rgba(36,49,60,1)",
-                    showland=True, 
-                    landcolor="rgba(17,24,39,1)"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-                # Display additional IP details with dark theme styling
-                st.markdown(f"""
-                <div style="
-                    background-color: #262730;
-                    border-radius: 10px;
-                    padding: 15px;
-                    color: #FFFFFF;
-                ">
-                <h4>IP Details</h4>
-                <p><strong>IP Address:</strong> {ip_address}</p>
-                <p><strong>Country:</strong> {ip_geolocation.get('country_name', 'N/A')}</p>
-                <p><strong>City:</strong> {ip_geolocation.get('city', 'N/A')}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
-                # Use custom dark theme button styling
                 st.markdown(
                     f'<a href="{url_input}" target="_blank" style="text-decoration: none;">'
-                    f'<button style="background-color: #4CAF50; color: white; padding: 10px 20px; '
-                    f'border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Go to URL</button></a>', 
+                    f'<button>Go to URL</button></a>', 
                     unsafe_allow_html=True
                 )
             else:
