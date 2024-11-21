@@ -143,6 +143,11 @@ else:
 
 # Sidebar with model selection
 st.sidebar.header("Select Models for Prediction")
+
+# Add a separation line between the button and model options
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+
+# Models dictionary
 models = {
     "Voting Classifier": vtc,
     "Decision Trees": dtc,
@@ -159,11 +164,6 @@ for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
 
-# Function to convert continuous probabilities to binary class labels
-def convert_to_class_labels(predictions, threshold=0.5):
-    """Converts continuous predictions to binary class labels based on a threshold."""
-    return (predictions > threshold).astype(int)
-
 # Preloaded sample malicious URLs
 malicious_url_samples = [
     "http://secure-data-access.com",
@@ -179,6 +179,9 @@ malicious_url_samples = [
 # Sidebar: Button to generate a malicious URL
 generate_malicious_button = st.sidebar.button("Generate Malicious URL")
 
+# Variable to store generated URL
+generated_url = None
+
 # Generate a malicious URL when clicked
 if generate_malicious_button:
     generated_url = np.random.choice(malicious_url_samples)
@@ -188,6 +191,12 @@ if generate_malicious_button:
     extracted_features = extract_features(generated_url)
     feature_values = np.array([[extracted_features[key] for key in extracted_features]])
 
+    # Show a copy button after the URL is generated
+    if generated_url:
+        st.sidebar.text("Click to copy URL to clipboard:")
+        st.sidebar.markdown(f"<a href='javascript:void(0)' onclick='navigator.clipboard.writeText(\"{generated_url}\")'>"
+                            "<button style='background-color: #4CAF50; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer;'>Copy URL</button></a>", unsafe_allow_html=True)
+
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
     predictions = {}
@@ -196,22 +205,11 @@ if st.button("Predict") and extracted_features:
             try:
                 if hasattr(model, "predict_proba"):  # For models that predict probabilities
                     prediction_probs = model.predict_proba(feature_values)[:, 1]
-                    prediction_class = convert_to_class_labels(prediction_probs)
+                    prediction_class = (prediction_probs >= 0.5).astype(int)
+                    accuracy = accuracy_score(y_test, prediction_class) * 100
                 else:
                     prediction_class = model.predict(feature_values)
-
-                # Handle neural network model separately
-                if model_name == "Neural Networks":
-                    prediction_probs = model.predict(feature_values)
-                    prediction_class = convert_to_class_labels(prediction_probs)
-
-                accuracy = None
-                if X_test is not None and y_test is not None:
-                    if model_name == "Neural Networks":
-                        y_pred_nn = convert_to_class_labels(model.predict(X_test))
-                        accuracy = accuracy_score(y_test, y_pred_nn) * 100
-                    else:
-                        accuracy = accuracy_score(y_test, model.predict(X_test)) * 100
+                    accuracy = accuracy_score(y_test, prediction_class) * 100
 
                 predictions[model_name] = {
                     "Prediction": "Safe" if prediction_class[0] == 1 else "Malicious",
