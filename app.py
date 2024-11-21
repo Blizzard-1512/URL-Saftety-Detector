@@ -144,6 +144,9 @@ else:
 # Sidebar with model selection
 st.sidebar.header("Select Models for Prediction")
 
+# Add a separation line between the button and model options
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+
 # Models dictionary
 models = {
     "Voting Classifier": vtc,
@@ -160,9 +163,6 @@ selected_models = []
 for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
-
-# Add a separation line between the button and model options
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
 # Preloaded sample malicious URLs
 malicious_url_samples = [
@@ -191,11 +191,18 @@ if generate_malicious_button:
     extracted_features = extract_features(generated_url)
     feature_values = np.array([[extracted_features[key] for key in extracted_features]])
 
-    # Show a copy button after the URL is generated
+    # Show the "Copy URL" button after the URL is generated
     if generated_url:
-        st.sidebar.text("Click to copy URL to clipboard:")
-        st.sidebar.markdown(f"<a href='javascript:void(0)' onclick='navigator.clipboard.writeText(\"{generated_url}\")'>"
-                            "<button style='background-color: #4CAF50; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer;'>Copy URL</button></a>", unsafe_allow_html=True)
+        copy_button = st.sidebar.button("Copy URL to Clipboard", key="copy_url_button")
+
+        if copy_button:
+            # JavaScript to copy the URL to the clipboard
+            st.sidebar.markdown(f"""
+            <script>
+            navigator.clipboard.writeText("{generated_url}")
+            alert("URL copied to clipboard!");
+            </script>
+            
 
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
@@ -206,10 +213,10 @@ if st.button("Predict") and extracted_features:
                 if hasattr(model, "predict_proba"):  # For models that predict probabilities
                     prediction_probs = model.predict_proba(feature_values)[:, 1]
                     prediction_class = (prediction_probs >= 0.5).astype(int)
-                    accuracy = accuracy_score(y_test, prediction_class) * 100
+                    accuracy = accuracy_score(y_test, prediction_class) * 100 if X_test is not None else None
                 else:
                     prediction_class = model.predict(feature_values)
-                    accuracy = accuracy_score(y_test, prediction_class) * 100
+                    accuracy = accuracy_score(y_test, prediction_class) * 100 if X_test is not None else None
 
                 predictions[model_name] = {
                     "Prediction": "Safe" if prediction_class[0] == 1 else "Malicious",
