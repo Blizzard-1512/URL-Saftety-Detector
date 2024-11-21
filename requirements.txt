@@ -4,6 +4,7 @@ keras_tuner
 matplotlib
 numpy
 pandas
+plotly
 protobuf
 scikit_learn
 scipy
