@@ -144,9 +144,6 @@ else:
 # Sidebar with model selection
 st.sidebar.header("Select Models for Prediction")
 
-# Add a separation line between the button and model options
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
-
 # Models dictionary
 models = {
     "Voting Classifier": vtc,
@@ -163,6 +160,9 @@ selected_models = []
 for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
+
+# Add a separation line between the button and model options
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
 # Preloaded sample malicious URLs
 malicious_url_samples = [
