@@ -235,6 +235,9 @@ if st.button("Predict") and extracted_features:
                         </div>
                         """, unsafe_allow_html=True)
 
+            # Add some vertical space
+            st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
                 # Use custom dark theme button styling
