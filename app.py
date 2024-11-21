@@ -7,7 +7,8 @@ from urllib.parse import urlparse
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Load all models
 try:
@@ -169,27 +170,34 @@ if st.button("Predict") and extracted_features:
                 "Model": name, "Prediction": details["Prediction"], "Accuracy": details["Accuracy"]
             } for name, details in predictions.items()])
 
-            # Highlight safe and malicious predictions
-            def highlight_predictions(row):
-                color = 'green' if row["Prediction"] == "Safe" else 'red'
-                return [f'background-color: {color}; color: white;'] * len(row)
-
             st.write("Prediction Results:")
-            st.dataframe(prediction_df.style.apply(highlight_predictions, axis=1))
+            st.dataframe(prediction_df.style)
 
-            # Generate plot of top 5 features
+            # Generate aesthetic plot of top 5 features
             feature_importances = pd.Series(extracted_features).sort_values(ascending=False)[:5]
-            plt.figure(figsize=(8, 5))
-            feature_importances.plot(kind='bar', color='blue')
-            plt.title("Top 5 Features Contributing to Prediction")
-            plt.ylabel("Feature Importance")
-            plt.xticks(rotation=45)
-            st.pyplot(plt)
+            fig = px.bar(
+                feature_importances,
+                x=feature_importances.index,
+                y=feature_importances.values,
+                labels={"x": "Feature", "y": "Value"},
+                title="Top 5 Features Contributing to Prediction",
+                template="plotly_white"
+            )
+            fig.update_layout(title_font_size=20)
+            st.plotly_chart(fig)
 
-            # Display "Go to URL" button if Safe
+            # Check if "Safe" is in the prediction results and show "Go to URL" button
             if "Safe" in prediction_df["Prediction"].values:
-                st.markdown(f"[Go to URL]({url_input})", unsafe_allow_html=True)
-            else:
-                st.warning("Malicious URL detected. It is recommended not to visit this link.")
-    else:
-        st.error("No models selected. Please choose at least one model to make predictions.")
+                go_to_url_button = f"""
+                <style>
+                .go-button {{
+                    background-color: #28a745;
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    text-decoration: none;
+                }}
+                </style>
+                <a href="{url_input}" class="go-button" target="_blank">Go to URL</a>
+                """
+                st.markdown(go_to_url_button, unsafe_allow_html=True)
