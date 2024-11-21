@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
-import io  # For handling file download
+import matplotlib.pyplot as plt
 
 # Load all models
 try:
@@ -61,7 +61,7 @@ def extract_features(url):
 
     # Extract features
     features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else 0
-    features["URLURL_Length"] = -1 if len(url) > 75 else (0 if len(url) > 54 else 1)
+    features["URL_Length"] = -1 if len(url) > 75 else (0 if len(url) > 54 else 1)
     features["Shortining_Service"] = 1 if "bit.ly" in url or "t.co" in url else 0
     features["having_At_Symbol"] = 1 if "@" in url else 0
     features["double_slash_redirecting"] = 1 if url.count("//") > 1 else 0
@@ -168,28 +168,28 @@ if st.button("Predict") and extracted_features:
             prediction_df = pd.DataFrame([{
                 "Model": name, "Prediction": details["Prediction"], "Accuracy": details["Accuracy"]
             } for name, details in predictions.items()])
+
+            # Highlight safe and malicious predictions
+            def highlight_predictions(row):
+                color = 'green' if row["Prediction"] == "Safe" else 'red'
+                return [f'background-color: {color}; color: white;'] * len(row)
+
             st.write("Prediction Results:")
-            st.dataframe(prediction_df)
+            st.dataframe(prediction_df.style.apply(highlight_predictions, axis=1))
 
-            # Download button for the CSV file
-            @st.cache
-            def convert_df_to_csv(df):
-                return df.to_csv(index=False).encode()
+            # Generate plot of top 5 features
+            feature_importances = pd.Series(extracted_features).sort_values(ascending=False)[:5]
+            plt.figure(figsize=(8, 5))
+            feature_importances.plot(kind='bar', color='blue')
+            plt.title("Top 5 Features Contributing to Prediction")
+            plt.ylabel("Feature Importance")
+            plt.xticks(rotation=45)
+            st.pyplot(plt)
 
-            csv_data = convert_df_to_csv(prediction_df)
-            st.download_button(
-                label="Download Prediction Results as CSV",
-                data=csv_data,
-                file_name="url_prediction_results.csv",
-                mime="text/csv"
-            )
-
-            # Display "Go to URL" button as an anchor tag with target="_blank" and styled like the other buttons
-            st.markdown(
-                f'<a href="{url_input}" target="_blank"><button style="background-color: #4CAF50; color: white; border: none; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">Go to URL</button></a>',
-                unsafe_allow_html=True
-            )
-
+            # Display "Go to URL" button if Safe
+            if "Safe" in prediction_df["Prediction"].values:
+                st.markdown(f"[Go to URL]({url_input})", unsafe_allow_html=True)
+            else:
+                st.warning("Malicious URL detected. It is recommended not to visit this link.")
     else:
-        st.warning("No models selected for prediction.")
-
+        st.error("No models selected. Please choose at least one model to make predictions.")
