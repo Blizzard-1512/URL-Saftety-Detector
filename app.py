@@ -4,11 +4,12 @@ import pickle
 import re
 import pandas as pd
 from urllib.parse import urlparse
+from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
-# Load models
+# Load all models
 try:
     vtc = pickle.load(open("vtc.pkl", "rb"))
     dtc = pickle.load(open("dtc.pkl", "rb"))
@@ -18,136 +19,177 @@ try:
     abc = pickle.load(open("abc.pkl", "rb"))
     svm = pickle.load(open("svm.pkl", "rb"))
     lr = pickle.load(open("lr.pkl", "rb"))
-    model = load_model("final_model.h5")
+    model_path = "final_model.h5"
+    model = load_model(model_path)
 except FileNotFoundError as e:
     st.error(f"Model file not found: {e}")
     st.stop()
 
-# App title
+# Attempt to load test data
+try:
+    test_data = pickle.load(open("test_data.pkl", "rb"))
+    X_test = test_data["X"]
+    y_test = test_data["y"]
+except FileNotFoundError:
+    st.warning(
+        "Test data file 'test_data.pkl' not found. Accuracy calculations will not be performed."
+    )
+    X_test, y_test = None, None
+
+# Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
 
-# Sidebar Instructions
-st.sidebar.header("Steps to Use")
-st.sidebar.markdown("""
-1. **Enter any URL** you wish to check for safety.  
-2. **Select a model** to use for prediction from the sidebar.  
-3. Click **Predict** to see the result and a feature analysis.  
+# Insert steps for using the application
+st.subheader("Steps to use the URL Legitimacy Detector")
+st.markdown(""" 
+1. **Copy any URL** of your choice which you want to test and find out whether it is safe or malicious.  
+2. **Select the model** you want to predict the result with from the sidebar on the left.  
+   - We recommend using the **Random Forest Classifier** for high accuracy.  
+   - Use the **Bagging Classifier** for consistent predictions.  
+3. After entering your URL and selecting the model, **click on the "Predict" button** and watch the magic happen.  
+   - Our model extracts the actual features from your URL and processes them to test for its legitimacy.  
 """)
 
-# Input URL
+# URL Input
 st.header("Enter a URL")
-url_input = st.text_input("Paste the URL below:")
+url_input = st.text_input("Input the URL:")
 
-# Feature Extraction
+# Feature extraction function
 def extract_features(url):
     features = {}
     parsed_url = urlparse(url)
+
+    # Extract features
     features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else 0
     features["URL_Length"] = -1 if len(url) > 75 else (0 if len(url) > 54 else 1)
-    features["Shortening_Service"] = 1 if "bit.ly" in url or "t.co" in url else 0
+    features["Shortining_Service"] = 1 if "bit.ly" in url or "t.co" in url else 0
     features["having_At_Symbol"] = 1 if "@" in url else 0
     features["double_slash_redirecting"] = 1 if url.count("//") > 1 else 0
     features["Prefix_Suffix"] = -1 if "-" in parsed_url.netloc else 1
-    features["having_Sub_Domain"] = -1 if parsed_url.netloc.count(".") > 2 else (0 if parsed_url.netloc.count(".") == 2 else 1)
+    features["having_Sub_Domain"] = -1 if parsed_url.netloc.count(".") > 2 else (
+        0 if parsed_url.netloc.count(".") == 2 else 1)
     features["SSLfinal_State"] = 1 if url.startswith("https") else -1
-    features["Google_Index"] = 1 if "google.com" in url else 0
+    features["Domain_registeration_length"] = 0  # Placeholder
+    features["Favicon"] = 1  # Placeholder
+    features["port"] = 1  # Placeholder
+    features["HTTPS_token"] = 1 if "https-" in parsed_url.netloc else 0
+    features["Request_URL"] = 1  # Placeholder
+    features["URL_of_Anchor"] = 0  # Placeholder
+    features["Links_in_tags"] = 0  # Placeholder
+    features["SFH"] = 0  # Placeholder
     features["Submitting_to_email"] = 1 if "mailto:" in url else 0
     features["Abnormal_URL"] = -1 if len(parsed_url.netloc.split(".")) > 3 else 1
+    features["Redirect"] = 1 if "→" in url else -1
+    features["on_mouseover"] = 0  # Placeholder
+    features["RightClick"] = 0  # Placeholder
+    features["popUpWidnow"] = 0  # Placeholder
+    features["Iframe"] = 0  # Placeholder
+    features["age_of_domain"] = 0  # Placeholder
+    features["DNSRecord"] = 0  # Placeholder
+    features["web_traffic"] = 0  # Placeholder
+    features["Page_Rank"] = 0  # Placeholder
+    features["Google_Index"] = 1 if "google.com" in url else 0
+    features["Links_pointing_to_page"] = 0  # Placeholder
+    features["Statistical_report"] = 0  # Placeholder
+
     return features
 
-# Sidebar Model Selection
-st.sidebar.header("Select Models")
+# Extract features when URL is entered
+if url_input:
+    st.write("Extracting features from the URL...")
+    extracted_features = extract_features(url_input)
+    feature_values = np.array([[extracted_features[key] for key in extracted_features]])
+
+    st.write("Extracted feature values:")
+    for key, value in extracted_features.items():
+        st.write(f"{key}: {value}")
+else:
+    extracted_features = None
+
+# Sidebar with model selection
+st.sidebar.header("Select Models for Prediction")
 models = {
     "Voting Classifier": vtc,
     "Decision Trees": dtc,
-    "Random Forests": rf,
-    "Bagging Classifier": bcf,
+    "Random Forests (Better for Generalization)": rf,
+    "Bagging Classifier (Better for Consistency)": bcf,
     "XGBoost Classifier": xgb,
     "AdaBoost Classifier": abc,
     "Support Vector Classifier": svm,
     "Neural Networks": model
 }
+
 selected_models = []
 for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
 
-# Predict Button
-if st.button("Predict"):
-    if not url_input:
-        st.error("Please enter a URL before predicting.")
-    elif not selected_models:
-        st.error("Please select at least one model for prediction.")
-    else:
-        # Extract features
-        extracted_features = extract_features(url_input)
-        feature_values = np.array([[extracted_features[key] for key in extracted_features]])
+# Function to convert continuous probabilities to binary class labels
+def convert_to_class_labels(predictions, threshold=0.5):
+    """Converts continuous predictions to binary class labels based on a threshold."""
+    return (predictions > threshold).astype(int)
 
-        # Perform predictions
-        predictions = {}
+# Prediction button and "Go to URL" button
+if st.button("Predict") and extracted_features:
+    predictions = {}
+    if selected_models:
         for model_name, model in selected_models:
             try:
-                if hasattr(model, "predict"):
-                    prediction = model.predict(feature_values)
-                    prediction_class = "Safe" if prediction[0] == 1 else "Malicious"
+                if hasattr(model, "predict_proba"):  # For models that predict probabilities
+                    prediction_probs = model.predict_proba(feature_values)[:, 1]
+                    prediction_class = convert_to_class_labels(prediction_probs)
                 else:
+                    prediction_class = model.predict(feature_values)
+
+                # Handle neural network model separately
+                if model_name == "Neural Networks":
                     prediction_probs = model.predict(feature_values)
-                    prediction_class = "Safe" if prediction_probs[0] > 0.5 else "Malicious"
-                predictions[model_name] = prediction_class
+                    prediction_class = convert_to_class_labels(prediction_probs)
+
+                accuracy = None
+                if X_test is not None and y_test is not None:
+                    if model_name == "Neural Networks":
+                        y_pred_nn = convert_to_class_labels(model.predict(X_test))
+                        accuracy = accuracy_score(y_test, y_pred_nn) * 100
+                    else:
+                        accuracy = accuracy_score(y_test, model.predict(X_test)) * 100
+
+                predictions[model_name] = {
+                    "Prediction": "Safe" if prediction_class[0] == 1 else "Malicious",
+                    "Accuracy": f"{accuracy:.2f}%" if accuracy is not None else "N/A"
+                }
             except NotFittedError:
-                st.error(f"Model {model_name} is not properly fitted.")
+                st.error(f"The model {model_name} is not properly fitted. Please check the model.")
             except Exception as e:
-                st.error(f"Error with {model_name}: {e}")
+                st.error(f"An error occurred with {model_name}: {e}")
 
         # Display predictions
-        prediction_df = pd.DataFrame(
-            [{"Model": name, "Prediction": result} for name, result in predictions.items()]
-        )
-        st.dataframe(
-            prediction_df.style.apply(
-                lambda x: ["background-color: green" if v == "Safe" else "background-color: red" for v in x["Prediction"]],
-                axis=1,
-            )
-        )
+        if predictions:
+            prediction_df = pd.DataFrame([{
+                "Model": name, "Prediction": details["Prediction"], "Accuracy": details["Accuracy"]
+            } for name, details in predictions.items()])
 
-        # Feature Importance Visualization
-        st.subheader("Feature Contribution")
-        plt.style.use("seaborn-darkgrid")
-        plt.figure(figsize=(10, 6))
-        pd.Series(extracted_features).sort_values(ascending=False).plot(
-            kind="bar", color="skyblue", edgecolor="black"
-        )
-        plt.title("Feature Contributions", fontsize=16, fontweight="bold")
-        plt.xlabel("Features", fontsize=14)
-        plt.ylabel("Importance", fontsize=14)
-        plt.xticks(rotation=45, fontsize=12)
-        st.pyplot(plt)
+            # Highlight safe and malicious predictions
+            def highlight_predictions(row):
+                color = 'green' if row["Prediction"] == "Safe" else 'red'
+                return [f'background-color: {color}; color: white;'] * len(row)
 
-        # Go to URL Button
-        if "Safe" in predictions.values():
-            st.markdown(
-                f"""
-                <style>
-                    .go-to-url {{
-                        background-color: #4CAF50;
-                        border: none;
-                        color: white;
-                        padding: 10px 20px;
-                        text-align: center;
-                        text-decoration: none;
-                        display: inline-block;
-                        font-size: 16px;
-                        margin: 4px 2px;
-                        cursor: pointer;
-                        border-radius: 8px;
-                    }}
-                    .go-to-url:hover {{
-                        background-color: #45a049;
-                    }}
-                </style>
-                <a class="go-to-url" href="{url_input}" target="_blank">Go to URL</a>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.warning("The URL is flagged as Malicious. Avoid visiting this link.")
+            st.write("Prediction Results:")
+            st.dataframe(prediction_df.style.apply(highlight_predictions, axis=1))
+
+            # Generate plot of top 5 features
+            feature_importances = pd.Series(extracted_features).sort_values(ascending=False)[:5]
+            plt.figure(figsize=(8, 5))
+            feature_importances.plot(kind='bar', color='blue')
+            plt.title("Top 5 Features Contributing to Prediction")
+            plt.ylabel("Feature Importance")
+            plt.xticks(rotation=45)
+            st.pyplot(plt)
+
+            # Display "Go to URL" button if Safe
+            if "Safe" in prediction_df["Prediction"].values:
+                st.markdown(f"[Go to URL]({url_input})", unsafe_allow_html=True)
+            else:
+                st.warning("Malicious URL detected. It is recommended not to visit this link.")
+    else:
+        st.error("No models selected. Please choose at least one model to make predictions.")
