@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 import socket
 import requests
 import json
-
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
@@ -202,7 +201,7 @@ if generate_malicious_button:
             navigator.clipboard.writeText("{generated_url}")
             alert("URL copied to clipboard!");
             </script>
-            
+            """, unsafe_allow_html=True)
 
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
@@ -269,7 +268,6 @@ if st.button("Predict") and extracted_features:
 
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
-                # Use custom dark theme button styling
                 st.markdown(
                     f'<a href="{url_input}" target="_blank" style="text-decoration: none;">'
                     f'<button style="background-color: #4CAF50; color: white; padding: 10px 20px; '
