@@ -76,7 +76,7 @@ st.markdown("""
 """)
 
 # Fetch malicious URL properties from GitHub
-GITHUB_CSV_URL = "https://raw.githubusercontent.com/Blizzard-1512/URL-Safety-Detector/main/Malicious_URL_Props.csv"
+GITHUB_CSV_URL = "https://github.com/Blizzard-1512/URL-Saftety-Detector/blob/master/Malicious_URL_Props.csv"
 
 @st.cache_data
 def fetch_malicious_url_props():
