@@ -1,22 +1,28 @@
 import streamlit as st
 import numpy as np
 import pickle
+import re
 import random
 import string
+import socket
+import requests
+import pandas as pd
+import plotly.express as px
 from urllib.parse import urlparse
+from tld import get_tld
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
-import pandas as pd
-import re
 
-# Set page configuration to wide mode and default theme
-st.set_page_config(page_title="URL Safety Detector", 
-                   page_icon=":shield:", 
-                   layout="wide", 
-                   initial_sidebar_state="expanded")
+# Set page configuration
+st.set_page_config(
+    page_title="URL Safety Detector",
+    page_icon=":shield:",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Load all models
+# Load models
 try:
     vtc = pickle.load(open("vtc.pkl", "rb"))
     dtc = pickle.load(open("dtc.pkl", "rb"))
@@ -32,33 +38,20 @@ except FileNotFoundError as e:
     st.error(f"Model file not found: {e}")
     st.stop()
 
-# Attempt to load test data
+# Test data (optional)
 try:
     test_data = pickle.load(open("test_data.pkl", "rb"))
     X_test = test_data["X"]
     y_test = test_data["y"]
 except FileNotFoundError:
-    st.warning(
-        "Test data file 'test_data.pkl' not found. Accuracy calculations will not be performed."
-    )
     X_test, y_test = None, None
 
-# Load malicious URL properties dataset
-try:
-    malicious_url_props = pd.read_csv("Malicious_URL_Props.csv")
-except FileNotFoundError:
-    st.error("Malicious URL properties file not found. Ensure the file is in the correct location.")
-    st.stop()
-
-# Custom CSS for dark theme and styling
+# Custom CSS for theme and styling
 st.markdown("""
 <style>
 .stApp {
     background-color: #0E1117;
     color: #FFFFFF;
-}
-.stDataFrame {
-    color: #000000;
 }
 .stTextInput > div > div > input {
     color: #FFFFFF;
@@ -73,19 +66,34 @@ h1, h2, h3, h4 {
 # Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
 
-# Insert steps for using the application
-st.subheader("Steps to use the URL Legitimacy Detector")
-st.markdown(""" 
-1. **Copy any URL** of your choice which you want to test and find out whether it is safe or malicious.  
-2. **Select the model** you want to predict the result with from the sidebar on the left.  
-   - We recommend using the **Random Forest Classifier** for high accuracy.  
-   - Use the **Bagging Classifier** for consistent predictions.  
-3. After entering your URL and selecting the model, **click on the "Predict" button** and watch the magic happen.  
-   - Our model extracts the actual features from your URL and processes them to test for its legitimacy.  
+# Instructions
+st.subheader("How to Use the Application")
+st.markdown("""
+1. Enter the **URL** you want to check for safety in the input box.
+2. Select one or more models from the **sidebar** to predict.
+3. Click **Predict** to see if the URL is **Safe** or **Malicious**.
+4. Use the **Malicious URL Generator** in the sidebar for testing purposes.
 """)
 
-# Malicious URL Generator Function based on dataset
-def generate_malicious_url_from_data(props_df):
+# Fetch malicious URL properties from GitHub
+GITHUB_CSV_URL = "https://raw.githubusercontent.com/your-username/your-repo/main/Malicious_URL_Props.csv"
+
+@st.cache_data
+def fetch_malicious_url_props():
+    try:
+        response = requests.get(GITHUB_CSV_URL)
+        response.raise_for_status()
+        return pd.read_csv(pd.compat.StringIO(response.text))
+    except Exception as e:
+        st.error(f"Error fetching malicious URL properties: {e}")
+        return None
+
+malicious_url_props = fetch_malicious_url_props()
+if malicious_url_props is None:
+    st.stop()
+
+# Malicious URL generator using fetched properties
+def generate_malicious_url(props_df):
     url_length_ranges = props_df["URL_Length"].value_counts(normalize=True).to_dict()
     subdomain_likelihood = props_df["having_Sub_Domain"].value_counts(normalize=True).to_dict()
     prefix_suffix_likelihood = props_df["Prefix_Suffix"].value_counts(normalize=True).to_dict()
@@ -113,65 +121,66 @@ def generate_malicious_url_from_data(props_df):
     prefix_suffix = "-" if has_prefix_suffix == -1 else ""
     path = "".join(random.choices(string.ascii_letters + string.digits, k=random.randint(5, 15)))
 
-    malicious_url = f"{scheme}://{subdomain + '.' if subdomain else ''}{domain}{prefix_suffix}.{tld}/{path}"
-    return malicious_url
+    return f"{scheme}://{subdomain + '.' if subdomain else ''}{domain}{prefix_suffix}.{tld}/{path}"
 
-# Malicious URL Generator Section in Sidebar
+# Malicious URL Generator in Sidebar
 st.sidebar.header("Malicious URL Generator")
 if st.sidebar.button("Generate Malicious URL"):
-    malicious_url = generate_malicious_url_from_data(malicious_url_props)
+    malicious_url = generate_malicious_url(malicious_url_props)
     st.sidebar.markdown(f"**Generated Malicious URL:**\n```\n{malicious_url}\n```")
-    st.sidebar.warning("Warning: This is a simulated malicious URL for educational purposes.")
+    st.sidebar.warning("This is a simulated malicious URL for testing purposes.")
 
 # URL Input
 st.header("Enter a URL")
-url_input = st.text_input("Input the URL:")
+url_input = st.text_input("URL:")
 
-# Feature extraction function
+# Feature Extraction
 def extract_features(url):
-    features = {}
     parsed_url = urlparse(url)
-
-    # Extract features as in original code...
-    features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else -1
-    # Other features go here...
+    features = {
+        "having_IP_Address": 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else -1,
+        "URL_Length": len(url),
+        "having_Sub_Domain": 1 if parsed_url.hostname and parsed_url.hostname.count(".") > 2 else -1,
+        "Prefix_Suffix": 1 if "-" in parsed_url.hostname else -1,
+        "SSLfinal_State": 1 if url.startswith("https") else -1,
+    }
     return features
 
-# Sidebar with model selection
+# Sidebar model selection
 st.sidebar.header("Select Models for Prediction")
 models = {
     "Voting Classifier": vtc,
     "Decision Trees": dtc,
-    "Random Forests (Better for Generalization)": rf,
-    "Bagging Classifier (Better for Consistency)": bcf,
+    "Random Forests": rf,
+    "Bagging Classifier": bcf,
     "XGBoost Classifier": xgb,
     "AdaBoost Classifier": abc,
     "Support Vector Classifier": svm,
-    "Neural Networks": model
+    "Neural Networks": model,
 }
+selected_models = [name for name in models if st.sidebar.checkbox(name)]
 
-selected_models = []
-for model_name in models:
-    if st.sidebar.checkbox(model_name):
-        selected_models.append((model_name, models[model_name]))
-
-# Prediction button and "Go to URL" button
+# Prediction
 if st.button("Predict") and url_input:
-    extracted_features = extract_features(url_input)
-    feature_values = np.array([[extracted_features[key] for key in extracted_features]])
+    features = extract_features(url_input)
+    feature_values = np.array([[features[key] for key in features]])
     predictions = {}
 
     if selected_models:
-        for model_name, model in selected_models:
+        for name in selected_models:
+            model = models[name]
             try:
-                # Prediction logic here...
-                predictions[model_name] = {
-                    "Prediction": "Safe",
-                    "Accuracy": "N/A"
-                }
-            except NotFittedError:
-                st.error(f"The model {model_name} is not properly fitted.")
+                if name == "Neural Networks":
+                    pred = model.predict(feature_values)
+                    predictions[name] = "Safe" if pred[0] < 0.5 else "Malicious"
+                else:
+                    pred = model.predict(feature_values)
+                    predictions[name] = "Safe" if pred[0] == 1 else "Malicious"
             except Exception as e:
-                st.error(f"An error occurred with {model_name}: {e}")
+                st.error(f"Error with {name}: {e}")
 
-        st.write(predictions)
+        st.subheader("Predictions")
+        for name, result in predictions.items():
+            st.write(f"**{name}:** {result}")
+    else:
+        st.error("No models selected. Please choose at least one model.")
