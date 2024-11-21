@@ -10,6 +10,9 @@ scikit_learn
 scipy
 seaborn
 streamlit
+socket
+requests
+json
 tensorflow
 tensorflow_intel
 xgboost
