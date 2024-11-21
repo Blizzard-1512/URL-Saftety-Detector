@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import socket
 import requests
 import json
+
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
@@ -142,11 +143,6 @@ else:
 
 # Sidebar with model selection
 st.sidebar.header("Select Models for Prediction")
-
-# Add a separation line between the button and model options
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
-
-# Models dictionary
 models = {
     "Voting Classifier": vtc,
     "Decision Trees": dtc,
@@ -163,6 +159,11 @@ for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
 
+# Function to convert continuous probabilities to binary class labels
+def convert_to_class_labels(predictions, threshold=0.5):
+    """Converts continuous predictions to binary class labels based on a threshold."""
+    return (predictions > threshold).astype(int)
+
 # Preloaded sample malicious URLs
 malicious_url_samples = [
     "http://secure-data-access.com",
@@ -178,9 +179,6 @@ malicious_url_samples = [
 # Sidebar: Button to generate a malicious URL
 generate_malicious_button = st.sidebar.button("Generate Malicious URL")
 
-# Variable to store generated URL
-generated_url = None
-
 # Generate a malicious URL when clicked
 if generate_malicious_button:
     generated_url = np.random.choice(malicious_url_samples)
@@ -190,19 +188,6 @@ if generate_malicious_button:
     extracted_features = extract_features(generated_url)
     feature_values = np.array([[extracted_features[key] for key in extracted_features]])
 
-    # Show the "Copy URL" button after the URL is generated
-    if generated_url:
-        copy_button = st.sidebar.button("Copy URL to Clipboard", key="copy_url_button")
-
-        if copy_button:
-            # JavaScript to copy the URL to the clipboard
-            st.sidebar.markdown(f"""
-            <script>
-            navigator.clipboard.writeText("{generated_url}")
-            alert("URL copied to clipboard!");
-            </script>
-            """, unsafe_allow_html=True)
-
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
     predictions = {}
@@ -211,11 +196,22 @@ if st.button("Predict") and extracted_features:
             try:
                 if hasattr(model, "predict_proba"):  # For models that predict probabilities
                     prediction_probs = model.predict_proba(feature_values)[:, 1]
-                    prediction_class = (prediction_probs >= 0.5).astype(int)
-                    accuracy = accuracy_score(y_test, prediction_class) * 100 if X_test is not None else None
+                    prediction_class = convert_to_class_labels(prediction_probs)
                 else:
                     prediction_class = model.predict(feature_values)
-                    accuracy = accuracy_score(y_test, prediction_class) * 100 if X_test is not None else None
+
+                # Handle neural network model separately
+                if model_name == "Neural Networks":
+                    prediction_probs = model.predict(feature_values)
+                    prediction_class = convert_to_class_labels(prediction_probs)
+
+                accuracy = None
+                if X_test is not None and y_test is not None:
+                    if model_name == "Neural Networks":
+                        y_pred_nn = convert_to_class_labels(model.predict(X_test))
+                        accuracy = accuracy_score(y_test, y_pred_nn) * 100
+                    else:
+                        accuracy = accuracy_score(y_test, model.predict(X_test)) * 100
 
                 predictions[model_name] = {
                     "Prediction": "Safe" if prediction_class[0] == 1 else "Malicious",
@@ -268,6 +264,7 @@ if st.button("Predict") and extracted_features:
 
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
+                # Use custom dark theme button styling
                 st.markdown(
                     f'<a href="{url_input}" target="_blank" style="text-decoration: none;">'
                     f'<button style="background-color: #4CAF50; color: white; padding: 10px 20px; '
