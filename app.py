@@ -159,6 +159,9 @@ for model_name in models:
     if st.sidebar.checkbox(model_name):
         selected_models.append((model_name, models[model_name]))
 
+# Add a separation line between the button and model options
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+
 # Function to convert continuous probabilities to binary class labels
 def convert_to_class_labels(predictions, threshold=0.5):
     """Converts continuous predictions to binary class labels based on a threshold."""
