@@ -2,13 +2,16 @@ import streamlit as st
 import numpy as np
 import pickle
 import re
+import random
+import string
+import socket
+import requests
+import json
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 from urllib.parse import urlparse
-import socket
-import requests
-import json
+from tld import get_tld
 
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
@@ -81,6 +84,82 @@ st.markdown("""
    - Our model extracts the actual features from your URL and processes them to test for its legitimacy.  
 """)
 
+# Malicious URL Generator Function
+def generate_malicious_url():
+    malicious_patterns = [
+        "{scheme}://{subdomain}.{domain}.{tld}/login?redirect={malicious_path}",
+        "{scheme}://{domain}.{tld}/login.php?next={malicious_path}",
+        "{scheme}://{subdomain}.{domain}.{tld}/verify?token={random_token}",
+        "{scheme}://{domain}.{tld}/profile?id={random_id}&redirect={malicious_path}",
+        "{scheme}://{subdomain}.{domain}.{tld}/click?ref={random_ref}"
+    ]
+
+    malicious_domains = [
+        "scam", "phish", "fraud", "malware", "virus", "hack", "steal", 
+        "login-verify", "secure-account", "verify-now"
+    ]
+
+    tlds = ["com", "org", "net", "info", "xyz"]
+    schemes = ["http", "https"]
+    subdomains = ["www", "login", "secure", "verify", "account"]
+
+    random_pattern = random.choice(malicious_patterns)
+    domain = random.choice(malicious_domains)
+    tld = random.choice(tlds)
+    scheme = random.choice(schemes)
+    subdomain = random.choice(subdomains)
+
+    # Generate random malicious path
+    malicious_path = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    random_token = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    random_id = ''.join(random.choices(string.digits, k=5))
+    random_ref = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
+
+    malicious_url = random_pattern.format(
+        scheme=scheme,
+        subdomain=subdomain,
+        domain=domain,
+        tld=tld,
+        malicious_path=malicious_path,
+        random_token=random_token,
+        random_id=random_id,
+        random_ref=random_ref
+    )
+
+    return malicious_url
+
+# Malicious URL Generator Section in Sidebar
+st.sidebar.header("Malicious URL Generator")
+if st.sidebar.button("Generate Malicious URL"):
+    malicious_url = generate_malicious_url()
+    st.sidebar.markdown(f"**Generated Malicious URL:**\n```\n{malicious_url}\n```")
+    st.sidebar.warning("Warning: This is a simulated malicious URL for educational purposes.")
+
+def get_domain_age(url):
+    try:
+        domain = urlparse(url).netloc
+        creation_date = socket.gethostbyname(domain)
+        return 1
+    except:
+        return -1
+
+def check_dns_record(url):
+    try:
+        domain = urlparse(url).netloc
+        socket.gethostbyname(domain)
+        return 1
+    except:
+        return -1
+
+def check_web_traffic(url):
+    try:
+        response = requests.get(f"https://api.similarweb.com/v1/similar-rank/{url}/ranks")
+        if response.status_code == 200:
+            return 1
+        return -1
+    except:
+        return -1
+
 # URL Input
 st.header("Enter a URL")
 url_input = st.text_input("Input the URL:")
@@ -89,39 +168,43 @@ url_input = st.text_input("Input the URL:")
 def extract_features(url):
     features = {}
     parsed_url = urlparse(url)
+    
+    try:
+        tld_obj = get_tld(url, as_object=True)
+    except:
+        tld_obj = None
 
-    # Extract features (same as previous implementation)
-    features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else 0
+    # Comprehensive Feature Extraction
+    features["having IP Address"] = 1 if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", parsed_url.netloc) else -1
     features["URL_Length"] = -1 if len(url) > 75 else (0 if len(url) > 54 else 1)
-    features["Shortining_Service"] = 1 if "bit.ly" in url or "t.co" in url else 0
-    features["having_At_Symbol"] = 1 if "@" in url else 0
-    features["double_slash_redirecting"] = 1 if url.count("//") > 1 else 0
+    features["Shortining_Service"] = 1 if any(service in url.lower() for service in ["bit.ly", "t.co", "goo.gl", "tinyurl"]) else -1
+    features["having_At_Symbol"] = 1 if "@" in url else -1
+    features["double_slash_redirecting"] = 1 if url.count("//") > 1 else -1
     features["Prefix_Suffix"] = -1 if "-" in parsed_url.netloc else 1
-    features["having_Sub_Domain"] = -1 if parsed_url.netloc.count(".") > 2 else (
-        0 if parsed_url.netloc.count(".") == 2 else 1)
+    features["having_Sub_Domain"] = -1 if (tld_obj and len(tld_obj.subdomain) > 0) else 1
     features["SSLfinal_State"] = 1 if url.startswith("https") else -1
-    features["Domain_registeration_length"] = 0  # Placeholder
-    features["Favicon"] = 1  # Placeholder
-    features["port"] = 1  # Placeholder
-    features["HTTPS_token"] = 1 if "https-" in parsed_url.netloc else 0
-    features["Request_URL"] = 1  # Placeholder
-    features["URL_of_Anchor"] = 0  # Placeholder
-    features["Links_in_tags"] = 0  # Placeholder
-    features["SFH"] = 0  # Placeholder
-    features["Submitting_to_email"] = 1 if "mailto:" in url else 0
-    features["Abnormal_URL"] = -1 if len(parsed_url.netloc.split(".")) > 3 else 1
+    features["Domain_registeration_length"] = get_domain_age(url)
+    features["Favicon"] = check_web_traffic(url)
+    features["port"] = 1 if parsed_url.port else -1
+    features["HTTPS_token"] = 1 if "https-" in parsed_url.netloc else -1
+    features["Request_URL"] = check_web_traffic(url)
+    features["URL_of_Anchor"] = check_dns_record(url)
+    features["Links_in_tags"] = check_web_traffic(url)
+    features["SFH"] = 1 if any(keyword in url for keyword in ['secure', 'login', 'signin']) else -1
+    features["Submitting_to_email"] = 1 if "mailto:" in url else -1
+    features["Abnormal_URL"] = -1 if tld_obj and len(tld_obj.subdomain.split('.')) > 3 else 1
     features["Redirect"] = 1 if "→" in url else -1
-    features["on_mouseover"] = 0  # Placeholder
-    features["RightClick"] = 0  # Placeholder
-    features["popUpWidnow"] = 0  # Placeholder
-    features["Iframe"] = 0  # Placeholder
-    features["age_of_domain"] = 0  # Placeholder
-    features["DNSRecord"] = 0  # Placeholder
-    features["web_traffic"] = 0  # Placeholder
-    features["Page_Rank"] = 0  # Placeholder
-    features["Google_Index"] = 1 if "google.com" in url else 0
-    features["Links_pointing_to_page"] = 0  # Placeholder
-    features["Statistical_report"] = 0  # Placeholder
+    features["on_mouseover"] = -1
+    features["RightClick"] = -1
+    features["popUpWidnow"] = -1
+    features["Iframe"] = -1
+    features["age_of_domain"] = get_domain_age(url)
+    features["DNSRecord"] = check_dns_record(url)
+    features["web_traffic"] = check_web_traffic(url)
+    features["Page_Rank"] = check_web_traffic(url)
+    features["Google_Index"] = 1 if "google.com" in url else -1
+    features["Links_pointing_to_page"] = check_web_traffic(url)
+    features["Statistical_report"] = -1
 
     return features
 
