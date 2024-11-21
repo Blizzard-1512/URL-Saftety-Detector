@@ -8,6 +8,7 @@ plotly
 protobuf
 scikit_learn
 scipy
+tld
 seaborn
 streamlit
 tensorflow
