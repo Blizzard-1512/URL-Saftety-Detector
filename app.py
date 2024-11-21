@@ -6,6 +6,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 from urllib.parse import urlparse
+import socket
+import requests
+import json
+
 from sklearn.metrics import accuracy_score
 from sklearn.exceptions import NotFittedError
 from tensorflow.keras.models import load_model
@@ -37,35 +41,27 @@ except FileNotFoundError:
     )
     X_test, y_test = None, None
 
-# Custom CSS for styling
-st.markdown("""
-<style>
-.stButton > button {
-    background-color: #4CAF50;
-    color: white;
-    border-radius: 10px;
-    border: none;
-    padding: 10px 20px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    margin: 4px 2px;
-    transition-duration: 0.4s;
-    cursor: pointer;
-}
-.stButton > button:hover {
-    background-color: #45a049;
-    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
-}
-.go-to-url {
-    background-color: #2196F3;
-}
-.go-to-url:hover {
-    background-color: #0b7dda;
-}
-</style>
-""", unsafe_allow_html=True)
+# Function to get IP address
+def get_ip_address(url):
+    try:
+        # Extract domain from URL
+        domain = urlparse(url).netloc
+        # Remove port if exists
+        domain = domain.split(':')[0]
+        return socket.gethostbyname(domain)
+    except Exception as e:
+        st.error(f"Could not resolve IP address: {e}")
+        return None
+
+# Function to get IP geolocation
+def get_ip_geolocation(ip_address):
+    try:
+        # Use ipapi.co for free IP geolocation
+        response = requests.get(f'https://ipapi.co/{ip_address}/json/')
+        return response.json()
+    except Exception as e:
+        st.error(f"Could not fetch IP geolocation: {e}")
+        return None
 
 # Define the app title
 st.title("URL Safety Prediction using Machine Learning & Deep Learning")
@@ -85,7 +81,7 @@ st.markdown("""
 st.header("Enter a URL")
 url_input = st.text_input("Input the URL:")
 
-# Feature extraction function (same as before)
+# Feature extraction function
 def extract_features(url):
     features = {}
     parsed_url = urlparse(url)
@@ -131,13 +127,17 @@ if url_input:
     extracted_features = extract_features(url_input)
     feature_values = np.array([[extracted_features[key] for key in extracted_features]])
 
+    # Get top 5 contributing features
+    top_features = pd.Series(extracted_features).sort_values(ascending=False)[:5]
+    
     st.write("Extracted feature values:")
     for key, value in extracted_features.items():
         st.write(f"{key}: {value}")
 else:
     extracted_features = None
+    top_features = None
 
-# Sidebar with model selection (same as before)
+# Sidebar with model selection
 st.sidebar.header("Select Models for Prediction")
 models = {
     "Voting Classifier": vtc,
@@ -162,6 +162,10 @@ def convert_to_class_labels(predictions, threshold=0.5):
 
 # Prediction button and "Go to URL" button
 if st.button("Predict") and extracted_features:
+    # Get IP Address and Geolocation
+    ip_address = get_ip_address(url_input)
+    ip_geolocation = get_ip_geolocation(ip_address) if ip_address else None
+
     predictions = {}
     if selected_models:
         for model_name, model in selected_models:
@@ -208,39 +212,58 @@ if st.button("Predict") and extracted_features:
             st.write("Prediction Results:")
             st.dataframe(prediction_df.style.apply(highlight_predictions, axis=1))
 
-            # Generate Plotly feature contribution graph
-            feature_importances = pd.Series(extracted_features).sort_values(ascending=False)[:5]
+            # Display Top Contributing Features
+            st.subheader("Top 5 Contributing Features")
             
-            # Create a colorful Plotly bar chart
-            fig = px.bar(
-                x=feature_importances.index, 
-                y=feature_importances.values,
-                title="Top 5 Features Contributing to Prediction",
-                labels={'x': 'Features', 'y': 'Feature Importance'},
-                color=feature_importances.values,
-                color_continuous_scale='Viridis'
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis_title="Features",
-                yaxis_title="Feature Importance",
-                height=400,
-                width=800,
-                title_x=0.5,
-                font=dict(size=12)
-            )
-            fig.update_xaxes(tickangle=45)
-            st.plotly_chart(fig)
+            # Create a beautiful display of top features
+            feature_container = st.container()
+            with feature_container:
+                cols = st.columns(len(top_features))
+                for i, (feature, value) in enumerate(top_features.items()):
+                    with cols[i]:
+                        st.markdown(f"""
+                        <div style="
+                            background-color: #f0f2f6;
+                            border-radius: 10px;
+                            padding: 10px;
+                            text-align: center;
+                            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        ">
+                        <h4 style="color: #333;">{feature}</h4>
+                        <p style="color: #666; font-size: 14px;">Value: {value}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # IP Geolocation Visualization
+            if ip_geolocation:
+                st.subheader("IP Geolocation")
+                
+                # Create Plotly world map with IP location
+                fig = px.scatter_geo(
+                    locationmode='country names',
+                    lon=[ip_geolocation.get('longitude')],
+                    lat=[ip_geolocation.get('latitude')],
+                    hover_name=[f"IP: {ip_address}"],
+                    text=[f"Country: {ip_geolocation.get('country_name')}<br>City: {ip_geolocation.get('city')}"],
+                    projection='natural earth'
+                )
+                fig.update_layout(height=300, margin={"r":0,"t":0,"l":0,"b":0})
+                st.plotly_chart(fig)
+
+                # Display additional IP details
+                st.write(f"**IP Address:** {ip_address}")
+                st.write(f"**Country:** {ip_geolocation.get('country_name')}")
+                st.write(f"**City:** {ip_geolocation.get('city')}")
 
             # Display "Go to URL" button if Safe
             if "Safe" in prediction_df["Prediction"].values:
-                # Custom HTML and CSS for Go to URL button
-                go_to_url_html = f'''
-                <a href="{url_input}" target="_blank" class="stButton go-to-url">
-                    <button style="background-color: #2196F3; color: white;">Go to URL</button>
-                </a>
-                '''
-                st.markdown(go_to_url_html, unsafe_allow_html=True)
+                # Use standard Streamlit button styling
+                st.markdown(
+                    f'<a href="{url_input}" target="_blank" style="text-decoration: none;">'
+                    f'<button style="background-color: #4CAF50; color: white; padding: 10px 20px; '
+                    f'border: none; border-radius: 4px; cursor: pointer;">Go to URL</button></a>', 
+                    unsafe_allow_html=True
+                )
             else:
                 st.warning("Malicious URL detected. It is recommended not to visit this link.")
     else:
