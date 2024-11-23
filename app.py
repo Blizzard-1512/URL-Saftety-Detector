@@ -278,33 +278,3 @@ if st.button("Predict") and extracted_features:
                 st.warning("Malicious URL detected. It is recommended not to visit this link.")
     else:
         st.error("No models selected. Please choose at least one model to make predictions.")
-
-
-
-
-from flask import Flask, request, jsonify
-
-# Create a Flask app inside the Streamlit app
-flask_app = Flask(__name__)
-
-@flask_app.route("/predict", methods=["POST"])
-def predict_url():
-    data = request.json
-    url = data.get("url")
-    if not url:
-        return jsonify({"error": "No URL provided."}), 400
-
-    # Extract features and predict (reuse existing code)
-    extracted_features = extract_features(url)
-    feature_values = np.array([[extracted_features[key] for key in extracted_features]])
-    
-    # Use a pre-selected model for prediction
-    model = rf  # Example: Random Forest
-    prediction_class = model.predict(feature_values)
-    prediction = "Safe" if prediction_class[0] == 1 else "Malicious"
-
-    return jsonify({"url": url, "prediction": prediction})
-
-# Add Flask app to Streamlit's server
-st.experimental_set_flask(flask_app)
-
