@@ -146,8 +146,8 @@ st.sidebar.header("Select Models for Prediction")
 models = {
     "Voting Classifier": vtc,
     "Decision Trees": dtc,
-    "Random Forests": rf,
-    "Bagging Classifier": bcf,
+    "Random Forests (Better for Generalization)": rf,
+    "Bagging Classifier (Better for Consistency)": bcf,
     "XGBoost Classifier": xgb,
     "AdaBoost Classifier": abc,
     "Support Vector Classifier": svm,
